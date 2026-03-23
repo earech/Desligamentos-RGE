@@ -1,0 +1,54 @@
+name: Monitor RGE - Desligamentos São Marcos
+
+on:
+  schedule:
+    - cron: '0 11 * * *'   # 08:00 horário de Brasília (UTC-3)
+    - cron: '0 23 * * *'   # 20:00 horário de Brasília (UTC-3)
+  workflow_dispatch:        # permite rodar manualmente pelo GitHub
+
+jobs:
+  verificar-desligamentos:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependências
+        run: pip install requests
+
+      - name: Consultar desligamentos CPFL/RGE
+        id: consulta
+        run: python verificar_rge.py
+
+      - name: ✅ Sem desligamentos - log de sucesso
+        if: steps.consulta.outputs.status == 'ok'
+        run: |
+          echo "✅ Nenhum desligamento programado em São Marcos nos próximos 5 dias."
+
+      - name: ⚠️ Desligamento encontrado - decodificar mensagem
+        if: steps.consulta.outputs.tem_desligamento == 'true'
+        id: decode
+        run: |
+          CORPO=$(echo "${{ steps.consulta.outputs.corpo_b64 }}" | base64 -d)
+          echo "CORPO_EMAIL<<EOF" >> $GITHUB_ENV
+          echo "$CORPO" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: 📧 Enviar alerta de desligamento por email
+        if: steps.consulta.outputs.tem_desligamento == 'true'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.EMAIL_REMETENTE }}
+          password: ${{ secrets.EMAIL_SENHA_APP }}
+          to: ${{ secrets.EMAIL_DESTINATARIO }}
+          from: Monitor RGE <${{ secrets.EMAIL_REMETENTE }}>
+          subject: "⚠️ Desligamento programado em São Marcos - RGE"
+          body: ${{ env.CORPO_EMAIL }}
