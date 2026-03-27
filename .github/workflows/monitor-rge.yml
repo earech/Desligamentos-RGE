@@ -32,6 +32,16 @@ jobs:
         id: consulta
         run: python verificar_rge.py
 
+      - name: Salvar screenshots de diagnostico
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagnostico-rge
+          path: |
+            *.png
+            *.html
+          if-no-files-found: ignore
+
       - name: Sem desligamentos
         if: steps.consulta.outputs.status == 'ok'
         run: echo "Nenhum desligamento encontrado."
