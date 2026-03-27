@@ -1,46 +1,50 @@
-name: Monitor RGE - Desligamentos São Marcos
+name: Monitor RGE - Desligamentos Sao Marcos
 
 on:
   schedule:
-    - cron: '0 11 * * *'   # 08:00 horário de Brasília (UTC-3)
-    - cron: '0 23 * * *'   # 20:00 horário de Brasília (UTC-3)
-  workflow_dispatch:        # permite rodar manualmente pelo GitHub
+    - cron: '0 11 * * *'
+    - cron: '0 23 * * *'
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   verificar-desligamentos:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Baixar repositório
-        uses: actions/checkout@v4
+      - name: Baixar repositorio
+        uses: actions/checkout@v4.2.2
 
       - name: Configurar Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v5.6.0
         with:
           python-version: '3.12'
 
-      - name: Instalar dependências
-        run: pip install requests
+      - name: Instalar Playwright
+        run: pip install playwright
 
-      - name: Consultar desligamentos CPFL/RGE
+      - name: Instalar Chromium
+        run: playwright install chromium --with-deps
+
+      - name: Consultar desligamentos
         id: consulta
         run: python verificar_rge.py
 
-      - name: ✅ Sem desligamentos - log de sucesso
+      - name: Sem desligamentos
         if: steps.consulta.outputs.status == 'ok'
-        run: |
-          echo "✅ Nenhum desligamento programado em São Marcos nos próximos 5 dias."
+        run: echo "Nenhum desligamento encontrado."
 
-      - name: ⚠️ Desligamento encontrado - decodificar mensagem
+      - name: Decodificar alerta
         if: steps.consulta.outputs.tem_desligamento == 'true'
-        id: decode
         run: |
           CORPO=$(echo "${{ steps.consulta.outputs.corpo_b64 }}" | base64 -d)
           echo "CORPO_EMAIL<<EOF" >> $GITHUB_ENV
           echo "$CORPO" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
-      - name: 📧 Enviar alerta de desligamento por email
+      - name: Enviar email
         if: steps.consulta.outputs.tem_desligamento == 'true'
         uses: dawidd6/action-send-mail@v3
         with:
@@ -50,5 +54,5 @@ jobs:
           password: ${{ secrets.EMAIL_SENHA_APP }}
           to: ${{ secrets.EMAIL_DESTINATARIO }}
           from: Monitor RGE <${{ secrets.EMAIL_REMETENTE }}>
-          subject: "⚠️ Desligamento programado em São Marcos - RGE"
+          subject: "Desligamento programado em Sao Marcos - RGE"
           body: ${{ env.CORPO_EMAIL }}
