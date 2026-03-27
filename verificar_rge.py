@@ -2,9 +2,8 @@ import os
 import sys
 import base64
 from datetime import datetime, timedelta
-from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
+from playwright.sync_api import sync_playwright
 
-MUNICIPIO = "Sao Marcos"
 DIAS_FRENTE = 5
 URL = "https://spir.cpfl.com.br/Publico/ConsultaDesligamentoProgramado/Visualizar/4"
 
@@ -15,16 +14,22 @@ def consultar(page):
     hoje = datetime.now()
     fim = hoje + timedelta(days=DIAS_FRENTE)
     page.goto(URL, wait_until="networkidle", timeout=30000)
-    page.locator("label", has_text="Por Localizacao").click()
-    page.wait_for_timeout(500)
+
+    # Clica no radio "Por Localizacao" pelo value, sem depender do texto
+    page.locator("input[type='radio'][value='2']").click()
+    page.wait_for_timeout(800)
+
     page.locator("input[name='DataInicio']").first.fill(formatar_data(hoje))
     page.locator("input[name='DataFim']").first.fill(formatar_data(fim))
     page.locator("select[name='Municipio']").first.select_option(label="São Marcos")
     page.wait_for_timeout(300)
-    page.locator("button:has-text('Pesquisar')").first.click()
-    page.wait_for_timeout(5000)
-    if page.locator("text=Nenhum desligamento programado").count() > 0:
+
+    page.locator("button[type='submit']").first.click()
+    page.wait_for_timeout(6000)
+
+    if page.get_by_text("Nenhum desligamento programado").count() > 0:
         return []
+
     desligamentos = []
     linhas = page.locator("table tr").all()
     cabecalhos = []
@@ -56,10 +61,10 @@ def main():
     periodo = formatar_data(hoje) + " ate " + formatar_data(fim)
 
     if not desligamentos:
-        corpo = "Nenhum desligamento em " + MUNICIPIO + ". Periodo: " + periodo
+        corpo = "Nenhum desligamento em Sao Marcos. Periodo: " + periodo
         tem_alerta = False
     else:
-        linhas = ["ALERTA: " + str(len(desligamentos)) + " desligamento(s) em " + MUNICIPIO]
+        linhas = ["ALERTA: " + str(len(desligamentos)) + " desligamento(s) em Sao Marcos"]
         linhas.append("Periodo: " + periodo)
         for i, d in enumerate(desligamentos, 1):
             linhas.append("--- Desligamento " + str(i) + " ---")
