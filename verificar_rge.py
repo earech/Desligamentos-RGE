@@ -16,7 +16,7 @@ def consultar(page):
     page.goto(URL, wait_until="networkidle", timeout=30000)
 
     # Clica no radio "Por Localizacao" pelo value, sem depender do texto
-    page.locator("input[type='radio'][value='2']").click()
+    page.locator("div.iradio_minimal-blue").nth(1).click()
     page.wait_for_timeout(800)
 
     page.locator("input[name='DataInicio']").first.fill(formatar_data(hoje))
