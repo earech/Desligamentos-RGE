@@ -15,16 +15,27 @@ def consultar(page):
     fim = hoje + timedelta(days=DIAS_FRENTE)
     page.goto(URL, wait_until="networkidle", timeout=30000)
 
-    # Clica no radio "Por Localizacao" pelo value, sem depender do texto
-    page.locator("div.iradio_minimal-blue").nth(1).click()
+    # Força o clique via JS, ignorando visibilidade
+    page.evaluate("document.getElementById('TipoConsulta_Localizacao').click()")
     page.wait_for_timeout(800)
 
-    page.locator("input[name='DataInicio']").first.fill(formatar_data(hoje))
-    page.locator("input[name='DataFim']").first.fill(formatar_data(fim))
-    page.locator("select[name='Municipio']").first.select_option(label="São Marcos")
+    page.evaluate("document.querySelector('input[name=DataInicio]').value = '" + formatar_data(hoje) + "'")
+    page.evaluate("document.querySelector('input[name=DataFim]').value = '" + formatar_data(fim) + "'")
+
+    # Seleciona Sao Marcos no select
+    page.evaluate("""
+        var sel = document.querySelector('select[name=Municipio]');
+        for (var i = 0; i < sel.options.length; i++) {
+            if (sel.options[i].text.trim() === 'São Marcos') {
+                sel.selectedIndex = i;
+                break;
+            }
+        }
+    """)
     page.wait_for_timeout(300)
 
-    page.locator("button[type='submit']").first.click()
+    # Submete o formulario via JS
+    page.evaluate("document.querySelector('button[type=submit]').click()")
     page.wait_for_timeout(6000)
 
     if page.get_by_text("Nenhum desligamento programado").count() > 0:
