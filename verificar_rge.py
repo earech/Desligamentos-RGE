@@ -85,8 +85,14 @@ def consultar(page):
         });
     """)
     page.wait_for_timeout(500)
-    salvar(page, "04_apos_municipio")
 
+    for seletor in ["#Bairro", "input[name='Bairro']"]:
+        if page.locator(seletor).count() > 0:
+            page.locator(seletor).first.fill("Industrial")
+            break
+
+    salvar(page, "04_apos_municipio")
+    
     print("Clicando pesquisar...")
     page.evaluate("""
         var btns = document.querySelectorAll('button, input[type=submit], input[type=button]');
@@ -103,10 +109,10 @@ def consultar(page):
     page.wait_for_timeout(7000)
     salvar(page, "05_apos_pesquisa")
 
-    sem_resultado = page.locator("text=Nenhum desligamento programado").count()
-    print("Sem resultado count: " + str(sem_resultado))
+    sem_resultado = page.locator("text=Nenhum desligamento programado").is_visible()
+    print("Sem resultado visivel: " + str(sem_resultado))
 
-    if sem_resultado > 0:
+    if sem_resultado:
         return []
 
     desligamentos = []
