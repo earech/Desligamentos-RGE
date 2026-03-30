@@ -22,96 +22,47 @@ def consultar(page):
     page.goto(URL, wait_until="networkidle", timeout=40000)
     salvar(page, "01_pagina_inicial")
 
-    print("Clicando radio Por Localizacao via JS...")
+    print("Preenchendo formulario via JS...")
     page.evaluate("""
-        var el = document.getElementById('TipoConsulta_Localizacao');
-        if (el) {
-            el.checked = true;
-            el.dispatchEvent(new Event('change', {bubbles: true}));
-            el.dispatchEvent(new Event('click', {bubbles: true}));
-        } else {
-            console.log('Radio nao encontrado');
-        }
-    """)
-    page.wait_for_timeout(1500)
-    salvar(page, "02_apos_radio")
+        var radio = document.getElementById('TipoConsulta_Localizacao');
+        radio.checked = true;
+        radio.dispatchEvent(new Event('change', {bubbles:true}));
 
-    print("Campos visiveis apos radio:")
-    inputs = page.evaluate("""
-        Array.from(document.querySelectorAll('input, select')).map(function(el) {
-            return el.name + ' | ' + el.id + ' | ' + el.type + ' | visible:' + (el.offsetParent !== null);
-        })
-    """)
-    for inp in inputs:
-        print("  " + inp)
+        var inputs = document.querySelectorAll('input[type=text]');
+        inputs[0].value = '""" + formatar_data(hoje) + """';
+        inputs[0].dispatchEvent(new Event('change', {bubbles:true}));
+        inputs[1].value = '""" + formatar_data(fim) + """';
+        inputs[1].dispatchEvent(new Event('change', {bubbles:true}));
 
-    print("Preenchendo datas...")
-    page.evaluate("""
-        var campos = document.querySelectorAll('input[type=text], input[type=date]');
-        campos.forEach(function(c) {
-            console.log('campo: ' + c.name + ' id:' + c.id);
-        });
-    """)
-
-    # Tenta preencher por id e por name com varias variações
-    for seletor in ["#DataInicio", "input[name='DataInicio']", "input[name='dataInicio']", "input[id*='nicio']"]:
-        count = page.locator(seletor).count()
-        if count > 0:
-            print("DataInicio encontrado com: " + seletor)
-            page.locator(seletor).first.fill(formatar_data(hoje))
-            break
-
-    for seletor in ["#DataFim", "input[name='DataFim']", "input[name='dataFim']", "input[id*='im']"]:
-        count = page.locator(seletor).count()
-        if count > 0:
-            print("DataFim encontrado com: " + seletor)
-            page.locator(seletor).first.fill(formatar_data(fim))
-            break
-
-    salvar(page, "03_apos_datas")
-
-    print("Selecionando municipio...")
-    page.evaluate("""
-        var sels = document.querySelectorAll('select');
-        sels.forEach(function(sel) {
-            for (var i = 0; i < sel.options.length; i++) {
-                if (sel.options[i].text.indexOf('Marcos') !== -1) {
-                    sel.selectedIndex = i;
-                    sel.dispatchEvent(new Event('change', {bubbles: true}));
-                    console.log('Municipio selecionado: ' + sel.options[i].text);
-                    break;
-                }
+        var sel = document.getElementById('IdMunicipio');
+        for (var i = 0; i < sel.options.length; i++) {
+            if (sel.options[i].text.indexOf('Marcos') !== -1) {
+                sel.selectedIndex = i;
+                sel.dispatchEvent(new Event('change', {bubbles:true}));
+                break;
             }
-        });
-    """)
-    page.wait_for_timeout(500)
+        }
 
-    for seletor in ["#Bairro", "input[name='Bairro']"]:
-        if page.locator(seletor).count() > 0:
-            page.locator(seletor).first.fill("Industrial")
-            break
-
-    salvar(page, "04_apos_municipio")
-    
-    print("Clicando pesquisar...")
-    page.evaluate("""
-        var btns = document.querySelectorAll('button, input[type=submit], input[type=button]');
-        btns.forEach(function(b) { console.log('btn: ' + b.type + ' text:' + b.innerText + ' value:' + b.value); });
+        var bairro = document.getElementById('Bairro');
+        bairro.value = 'Industrial';
+        bairro.dispatchEvent(new Event('change', {bubbles:true}));
     """)
+    page.wait_for_timeout(1000)
+    salvar(page, "02_apos_preenchimento")
+
+    print("Submetendo formulario...")
     page.evaluate("""
         var btn = document.querySelector('button[type=submit]') ||
                   document.querySelector('input[type=submit]') ||
                   document.querySelector('button.btn-primary') ||
                   document.querySelector('button');
-        if (btn) { btn.click(); console.log('Clicou: ' + btn.innerText); }
-        else { console.log('Nenhum botao encontrado'); }
+        if (btn) btn.click();
     """)
     page.wait_for_timeout(7000)
-    salvar(page, "05_apos_pesquisa")
+    salvar(page, "03_apos_pesquisa")
 
     sem_resultado = page.locator("text=Nenhum desligamento programado").is_visible()
     print("Sem resultado visivel: " + str(sem_resultado))
-
     if sem_resultado:
         return []
 
@@ -147,10 +98,10 @@ def main():
     periodo = formatar_data(hoje) + " ate " + formatar_data(fim)
 
     if not desligamentos:
-        corpo = "Nenhum desligamento em Sao Marcos. Periodo: " + periodo
+        corpo = "Nenhum desligamento em Sao Marcos - Industrial. Periodo: " + periodo
         tem_alerta = False
     else:
-        linhas = ["ALERTA: " + str(len(desligamentos)) + " desligamento(s) em Sao Marcos"]
+        linhas = ["ALERTA: " + str(len(desligamentos)) + " desligamento(s) em Sao Marcos - Industrial"]
         linhas.append("Periodo: " + periodo)
         for i, d in enumerate(desligamentos, 1):
             linhas.append("--- Desligamento " + str(i) + " ---")
