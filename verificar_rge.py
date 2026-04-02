@@ -20,11 +20,13 @@ def consultar(page):
 
     print("Carregando pagina...")
     page.goto(URL, wait_until="networkidle", timeout=40000)
+    page.wait_for_timeout(3000)
     salvar(page, "01_pagina_inicial")
 
     print("Preenchendo formulario via JS...")
     page.evaluate("""
         var radio = document.getElementById('TipoConsulta_Localizacao');
+        if (!radio) { console.log('radio nao encontrado'); } else {
         radio.checked = true;
         radio.dispatchEvent(new Event('change', {bubbles:true}));
 
@@ -46,6 +48,7 @@ def consultar(page):
         var bairro = document.getElementById('Bairro');
         bairro.value = 'Industrial';
         bairro.dispatchEvent(new Event('change', {bubbles:true}));
+        }
     """)
     page.wait_for_timeout(1000)
     salvar(page, "02_apos_preenchimento")
