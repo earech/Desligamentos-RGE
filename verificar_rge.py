@@ -8,89 +8,111 @@ URL = "https://spir.cpfl.com.br/Publico/ConsultaDesligamentoProgramado/Visualiza
 def formatar_data(dt):
     return dt.strftime("%d/%m/%Y")
 
-def salvar(page, nome):
-    page.screenshot(path=nome + ".png", full_page=True)
-    print("Salvo: " + nome)
-
 def consultar(page):
     hoje = datetime.now()
     fim = hoje + timedelta(days=DIAS_FRENTE)
 
-    respostas = []
+    ajax_respostas = []
 
-    def capturar_resposta(response):
+    def capturar(response):
         url = response.url
-        if "Pesquisar" in url or "desligamento" in url.lower() or "consulta" in url.lower():
-            print("Interceptado: " + url + " status:" + str(response.status))
+        if "Pesquisar" in url or "pesquisar" in url or "Desligamento" in url:
+            print("AJAX capturado: " + url)
             try:
-                respostas.append({"url": url, "body": response.text()})
-            except Exception as ex:
-                print("Erro ao ler resposta: " + str(ex))
+                ajax_respostas.append(response.text())
+            except:
+                pass
 
-    def capturar_request(request):
-        if request.method == "POST":
-            print("POST: " + request.url)
-            print("POST body: " + str(request.post_data)[:500])
-
-    page.on("response", capturar_resposta)
-    page.on("request", capturar_request)
+    page.on("response", capturar)
 
     print("Carregando pagina...")
     page.goto(URL, wait_until="networkidle", timeout=40000)
     page.wait_for_timeout(3000)
-    salvar(page, "01_inicial")
 
-    print("Preenchendo e submetendo...")
+    print("Ativando radio via iCheck/jQuery...")
     page.evaluate("""
-        var radio = document.getElementById('TipoConsulta_Localizacao');
-        if (radio) {
-            radio.checked = true;
-            radio.dispatchEvent(new Event('change', {bubbles:true}));
+        if (typeof $ !== 'undefined') {
+            $('#TipoConsulta_Localizacao').iCheck('check');
+            console.log('iCheck check chamado');
+        } else {
+            console.log('jQuery nao disponivel');
         }
-        var inputs = document.querySelectorAll('input[type=text]');
-        if (inputs[0]) { inputs[0].value = '""" + formatar_data(hoje) + """'; inputs[0].dispatchEvent(new Event('change', {bubbles:true})); }
-        if (inputs[1]) { inputs[1].value = '""" + formatar_data(fim) + """'; inputs[1].dispatchEvent(new Event('change', {bubbles:true})); }
+    """)
+    page.wait_for_timeout(2000)
+
+    print("Preenchendo datas via datepicker...")
+    page.evaluate("""
+        try {
+            $('input[name=from]').datepicker('setDate', '""" + formatar_data(hoje) + """');
+            $('input[name=to]').datepicker('setDate', '""" + formatar_data(fim) + """');
+            console.log('Datas preenchidas via datepicker');
+        } catch(e) {
+            console.log('datepicker falhou: ' + e);
+            var inputs = document.querySelectorAll('input[type=text]');
+            inputs[0].value = '""" + formatar_data(hoje) + """';
+            inputs[1].value = '""" + formatar_data(fim) + """';
+        }
+    """)
+    page.wait_for_timeout(500)
+
+    print("Selecionando municipio...")
+    page.evaluate("""
         var sel = document.getElementById('IdMunicipio');
-        if (sel) {
-            for (var i = 0; i < sel.options.length; i++) {
-                if (sel.options[i].text.indexOf('Marcos') !== -1) {
-                    sel.selectedIndex = i;
-                    sel.dispatchEvent(new Event('change', {bubbles:true}));
-                    break;
-                }
+        for (var i = 0; i < sel.options.length; i++) {
+            if (sel.options[i].text.indexOf('Marcos') !== -1) {
+                sel.selectedIndex = i;
+                $(sel).trigger('change');
+                console.log('Municipio: ' + sel.options[i].text + ' value: ' + sel.options[i].value);
+                break;
             }
         }
-        var bairro = document.getElementById('Bairro');
-        if (bairro) { bairro.value = 'Industrial'; bairro.dispatchEvent(new Event('change', {bubbles:true})); }
-        var btn = document.querySelector('button[type=submit]') || document.querySelector('button');
-        if (btn) btn.click();
+    """)
+    page.wait_for_timeout(500)
+
+    print("Preenchendo bairro...")
+    page.evaluate("""
+        var b = document.getElementById('Bairro');
+        b.value = 'Industrial';
+        $(b).trigger('change');
+    """)
+    page.wait_for_timeout(500)
+
+    print("Clicando pesquisar via jQuery...")
+    page.evaluate("""
+        var btn = $('button[type=submit]').first();
+        if (btn.length) {
+            btn.click();
+            console.log('Click via jQuery ok');
+        } else {
+            console.log('Botao nao encontrado');
+        }
     """)
 
-    page.wait_for_timeout(8000)
-    salvar(page, "02_apos_submit")
+    print("Aguardando resposta AJAX...")
+    page.wait_for_timeout(10000)
 
-    print("Requisicoes POST capturadas: " + str(len(respostas)))
-    for r in respostas:
-        print("URL: " + r["url"])
-        print("Body: " + str(r["body"])[:2000])
+    print("AJAX respostas capturadas: " + str(len(ajax_respostas)))
+    for r in ajax_respostas:
+        print("Resposta: " + str(r)[:1000])
 
-    if not respostas:
-        print("Nenhuma requisicao AJAX capturada - verificando pagina...")
-        print(page.locator("body").inner_text()[:2000])
+    if not ajax_respostas:
+        print("Nenhuma resposta AJAX - verificando texto da pagina...")
+        texto = page.locator("body").inner_text()
+        print(texto[:1000])
         return []
 
-    # Processa a resposta capturada
-    for r in respostas:
+    for r in ajax_respostas:
+        if "Nenhum desligamento" in r:
+            return []
         try:
-            dados = json.loads(r["body"])
+            dados = json.loads(r)
             if isinstance(dados, list):
                 return dados
             for chave in dados:
                 if isinstance(dados[chave], list):
                     return dados[chave]
-        except Exception:
-            if "Nenhum desligamento" in str(r["body"]):
-                return []
+        except:
+            pass
 
     return []
 
