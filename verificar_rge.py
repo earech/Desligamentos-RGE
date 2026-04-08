@@ -62,15 +62,24 @@ def consultar(page):
         if (btn) btn.click();
     """)
     page.wait_for_timeout(7000)
+
     salvar(page, "03_apos_pesquisa")
 
     sem_resultado = page.locator("text=Nenhum desligamento programado").is_visible()
     print("Sem resultado visivel: " + str(sem_resultado))
+
+    # Loga todo o texto visivel da pagina para diagnostico
+    texto_pagina = page.locator("body").inner_text()
+    print("=== TEXTO DA PAGINA ===")
+    print(texto_pagina[:3000])
+    print("=== FIM ===")
+
     if sem_resultado:
         return []
 
     desligamentos = []
     linhas = page.locator("table tr").all()
+    print("Linhas na tabela: " + str(len(linhas)))
     cabecalhos = []
     for i, linha in enumerate(linhas):
         celulas = [c.inner_text().strip() for c in linha.locator("td, th").all()]
