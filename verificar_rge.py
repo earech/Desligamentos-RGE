@@ -10,72 +10,89 @@ def formatar_data(dt):
 
 def salvar(page, nome):
     page.screenshot(path=nome + ".png", full_page=True)
-    with open(nome + ".html", "w", encoding="utf-8") as f:
-        f.write(page.content())
     print("Salvo: " + nome)
 
 def consultar(page):
     hoje = datetime.now()
     fim = hoje + timedelta(days=DIAS_FRENTE)
 
+    respostas = []
+
+    def capturar_resposta(response):
+        url = response.url
+        if "Pesquisar" in url or "desligamento" in url.lower() or "consulta" in url.lower():
+            print("Interceptado: " + url + " status:" + str(response.status))
+            try:
+                respostas.append({"url": url, "body": response.text()})
+            except Exception as ex:
+                print("Erro ao ler resposta: " + str(ex))
+
+    def capturar_request(request):
+        if request.method == "POST":
+            print("POST: " + request.url)
+            print("POST body: " + str(request.post_data)[:500])
+
+    page.on("response", capturar_resposta)
+    page.on("request", capturar_request)
+
     print("Carregando pagina...")
     page.goto(URL, wait_until="networkidle", timeout=40000)
     page.wait_for_timeout(3000)
-    action = page.evaluate("document.querySelector('form') ? document.querySelector('form').action : 'sem form'")
-    print("Form action: " + str(action))
-    salvar(page, "01_pagina_inicial")
+    salvar(page, "01_inicial")
 
-    print("Submetendo via fetch direto...")
-    resultado = page.evaluate("""
-        async () => {
-            var sel = document.getElementById('IdMunicipio');
-            var idMunicipio = '';
+    print("Preenchendo e submetendo...")
+    page.evaluate("""
+        var radio = document.getElementById('TipoConsulta_Localizacao');
+        if (radio) {
+            radio.checked = true;
+            radio.dispatchEvent(new Event('change', {bubbles:true}));
+        }
+        var inputs = document.querySelectorAll('input[type=text]');
+        if (inputs[0]) { inputs[0].value = '""" + formatar_data(hoje) + """'; inputs[0].dispatchEvent(new Event('change', {bubbles:true})); }
+        if (inputs[1]) { inputs[1].value = '""" + formatar_data(fim) + """'; inputs[1].dispatchEvent(new Event('change', {bubbles:true})); }
+        var sel = document.getElementById('IdMunicipio');
+        if (sel) {
             for (var i = 0; i < sel.options.length; i++) {
                 if (sel.options[i].text.indexOf('Marcos') !== -1) {
-                    idMunicipio = sel.options[i].value;
+                    sel.selectedIndex = i;
+                    sel.dispatchEvent(new Event('change', {bubbles:true}));
                     break;
                 }
             }
-            console.log('IdMunicipio encontrado: ' + idMunicipio);
-
-            var params = new URLSearchParams();
-            params.append('TipoConsulta', '2');
-            params.append('from', '""" + formatar_data(hoje) + """');
-            params.append('to', '""" + formatar_data(fim) + """');
-            params.append('IdMunicipio', idMunicipio);
-            params.append('Bairro', 'Industrial');
-            params.append('Rua', '');
-
-            var resp = await fetch('/Publico/ConsultaDesligamentoProgramado/Pesquisar', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                body: params.toString()
-            });
-            return await resp.text();
         }
+        var bairro = document.getElementById('Bairro');
+        if (bairro) { bairro.value = 'Industrial'; bairro.dispatchEvent(new Event('change', {bubbles:true})); }
+        var btn = document.querySelector('button[type=submit]') || document.querySelector('button');
+        if (btn) btn.click();
     """)
 
-    print("=== RESPOSTA ===")
-    print(str(resultado)[:3000])
-    print("=== FIM ===")
+    page.wait_for_timeout(8000)
+    salvar(page, "02_apos_submit")
 
-    # Tenta parsear como JSON
-    desligamentos = []
-    try:
-        dados = json.loads(resultado)
-        if isinstance(dados, list):
-            desligamentos = dados
-        elif isinstance(dados, dict):
+    print("Requisicoes POST capturadas: " + str(len(respostas)))
+    for r in respostas:
+        print("URL: " + r["url"])
+        print("Body: " + str(r["body"])[:2000])
+
+    if not respostas:
+        print("Nenhuma requisicao AJAX capturada - verificando pagina...")
+        print(page.locator("body").inner_text()[:2000])
+        return []
+
+    # Processa a resposta capturada
+    for r in respostas:
+        try:
+            dados = json.loads(r["body"])
+            if isinstance(dados, list):
+                return dados
             for chave in dados:
                 if isinstance(dados[chave], list):
-                    desligamentos = dados[chave]
-                    break
-    except Exception:
-        # Nao e JSON, verifica se texto indica sem resultado
-        if "Nenhum desligamento" in str(resultado):
-            return []
+                    return dados[chave]
+        except Exception:
+            if "Nenhum desligamento" in str(r["body"]):
+                return []
 
-    return desligamentos
+    return []
 
 def main():
     with sync_playwright() as p:
