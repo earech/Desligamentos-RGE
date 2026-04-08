@@ -21,6 +21,8 @@ def consultar(page):
     print("Carregando pagina...")
     page.goto(URL, wait_until="networkidle", timeout=40000)
     page.wait_for_timeout(3000)
+    action = page.evaluate("document.querySelector('form') ? document.querySelector('form').action : 'sem form'")
+    print("Form action: " + str(action))
     salvar(page, "01_pagina_inicial")
 
     print("Submetendo via fetch direto...")
