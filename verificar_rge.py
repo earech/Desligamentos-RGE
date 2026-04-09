@@ -91,28 +91,31 @@ def consultar(page):
     print("Aguardando resposta AJAX...")
     page.wait_for_timeout(10000)
 
-    print("AJAX respostas capturadas: " + str(len(ajax_respostas)))
-    for r in ajax_respostas:
-        print("Resposta: " + str(r)[:1000])
-
-    if not ajax_respostas:
-        print("Nenhuma resposta AJAX - verificando texto da pagina...")
-        texto = page.locator("body").inner_text()
-        print(texto[:1000])
-        return []
-
     for r in ajax_respostas:
         if "Nenhum desligamento" in r:
             return []
         try:
             dados = json.loads(r)
-            if isinstance(dados, list):
-                return dados
-            for chave in dados:
-                if isinstance(dados[chave], list):
-                    return dados[chave]
-        except:
-            pass
+            if "Data" in dados:
+                resultado = []
+                for municipio in dados["Data"]:
+                    for data_item in municipio.get("Datas", []):
+                        data = data_item["Data"][:10]
+                        for doc in data_item.get("Documentos", []):
+                            for bairro in doc.get("Bairros", []):
+                                ruas = ", ".join([ru["NomeRua"] for ru in bairro.get("Ruas", [])])
+                                resultado.append({
+                                    "Data": data,
+                                    "Documento": doc["DescricaoDocumento"],
+                                    "Inicio": doc["PeriodoExecucaoInicial"][11:16],
+                                    "Fim": doc["PeriodoExecucaoPeriodoFinal"][11:16],
+                                    "Bairro": bairro["NomeBairro"],
+                                    "Ruas": ruas,
+                                    "Motivo": doc["NecessidadeDocumento"],
+                                })
+                return resultado
+        except Exception as ex:
+            print("Erro parse: " + str(ex))
 
     return []
 
