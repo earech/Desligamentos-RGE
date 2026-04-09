@@ -22,11 +22,8 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Instalar Playwright
-        run: pip install playwright
-
-      - name: Instalar Chromium
-        run: playwright install chromium --with-deps
+      - name: Instalar dependencias
+        run: pip install requests
 
       - name: Consultar desligamentos
         id: consulta
